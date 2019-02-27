@@ -339,11 +339,11 @@ def train_with_active_learning(step=1, target='Feminist Movement', tweet_per_ste
         unlabeled_data = pd.read_csv('Step_{}_unlabeled_next_step.csv'.format(step-1))
         annotated_data = pd.read_csv('Step_{}_tweet_to_label.csv'.format(step-1))
         
-        #cols = ['tweet', 'Stance']
+        cols = ['tweet', 'Stance']
         
         train_data_all = pd.concat([train_data.reset_index(drop=True), \
                                     annotated_data.reset_index(drop=True)],sort=True, axis=0)
-        train_data_all.to_csv('Step_{}_train_data.csv'.format(step), index=False)
+        train_data_all[cols].to_csv('Step_{}_train_data.csv'.format(step), index=False)
         # shuffle training dataset 
         train_data_all = train_data_all.sample(frac=1)
         

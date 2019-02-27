@@ -338,9 +338,10 @@ if __name__ == '__main__':
     
     INPUTS:
     
-    - In order to run, the scriptrequire both file from the 2016 SemEval task 
-      in the same directory (called test.csv and train.csv, the test file is 
-      used here as a source for unlabeled data)
+    - In order to run, the script require both files from the 2016 SemEval task 
+      in its same directory (file names are test.csv and train.csv if you change 
+      them then replace the names with the new ones, the test file is used here 
+      as a source for unlabeled data)
     
     
     PARAMETERS:

@@ -22,9 +22,9 @@ from keras.optimizers import Adam
 from spacy.compat import pickle
 import spacy
 from scipy.stats import entropy
-from preprocessing_functions3 import rename_labels
-from preprocessing_functions3 import cleaning_text
-from preprocessing_functions3 import split_save
+from preprocessing_functions import rename_labels
+from preprocessing_functions import cleaning_text
+from preprocessing_functions import split_save
 
 # just to remove a deprecation warning
 import os

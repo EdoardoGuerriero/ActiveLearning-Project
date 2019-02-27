@@ -15,7 +15,7 @@ To use this script you need to install first a couple of libraries by running th
 (to download the embedding vectors dictionary)
 
 If you will get a system message telling you that your laptop is running out of memory 
-you just need to restart the laptop to remuve all the cache from the RAM.
+you just need to restart the python kernel to remove all the cache from the RAM (or restart the whole laptop).
 
 NB: 
 - the script works only with the SemEval datasets for now, I will soon generalize the code to let the user set the training and target columns of whatever dataset.

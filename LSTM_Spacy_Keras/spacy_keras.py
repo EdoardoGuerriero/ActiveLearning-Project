@@ -12,7 +12,6 @@ Compatible with: spaCy v2.0.0+
 
 import plac
 import random
-import pathlib
 import cytoolz
 import numpy
 import pandas as pd
@@ -20,27 +19,21 @@ from keras.models import Sequential, model_from_json
 from keras.layers import LSTM, Dense, Embedding, Bidirectional
 from keras.layers import TimeDistributed
 from keras.optimizers import Adam
-import thinc.extra.datasets
 from spacy.compat import pickle
 import spacy
 from scipy.stats import entropy
-from sklearn.preprocessing import LabelEncoder
 from preprocessing_functions3 import rename_labels
 from preprocessing_functions3 import cleaning_text
 from preprocessing_functions3 import split_save
 
-
-# to remove deprecation warning
+# just to remove a deprecation warning
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"]="3"
 
 class SentimentAnalyser(object):
     @classmethod
     def load(cls, step, nlp, active, max_length=100):
-#        with (path / 'model_config.json').open() as file_:
-#            model = model_from_json(file_.read())
-#        with (path / 'model_weights.pkl').open('rb') as file_:
-#            lstm_weights = pickle.load(file_)
+
         with open('Step_{}_model_config.json'.format(step)) as file_:
             model = model_from_json(file_.read())
         with open('Step_{}_model_weights.pkl'.format(step), 'rb') as file_:
@@ -68,13 +61,12 @@ class SentimentAnalyser(object):
             Xs = get_features(sentences, self.max_length)
             ys = self._model.predict(Xs)
             for sent, label in zip(sentences, ys):
-#                if numpy.argmax(label) > 3:
-#                    print(numpy.argmax(label))
+
                 if self.active == 'entropy':
                     entr = entropy(label)
                     sent.doc.sentiment += entr  
                     
-                elif self.active == 'margin':
+                elif self.active == 'max_margin':
                     margin = numpy.partition(-label, 1)
                     margin_scores = -numpy.abs(margin[:,0] - margin[:, 1])
                     sent.doc.sentiment += margin_scores
@@ -93,10 +85,7 @@ class SentimentAnalyser(object):
 
     def set_sentiment(self, doc, y):
         doc.sentiment = float(y[0])
-        # Sentiment has a native slot for a single float.
-        # For arbitrary data storage, there's:
-        # doc.user_data['my_data'] = y
-
+        
 
 def get_labelled_sentences(docs, doc_labels):
     labels = []
@@ -183,8 +172,7 @@ def evaluate(texts, labels, step, max_length=100):
     correct = 0
     i = 0
     for doc in nlp.pipe(texts, batch_size=1000, n_threads=4):
-#        if i < 10:
-#            print(doc.text)
+
         correct += bool(doc.sentiment >= 0.5) == bool(numpy.argmax(labels[i]))
         i += 1
     return float(correct) / i
@@ -199,8 +187,7 @@ def active_step(texts, step, strategy='entropy', max_length=100):
     
     i = 0
     for doc in nlp.pipe(texts, batch_size=1000, n_threads=4):
-#        if i < 10:
-#            print(doc.sentiment)
+
         data_ordered.loc[i, 'tweet'] = doc.text
         data_ordered.loc[i, 'scores'] = doc.sentiment
         
@@ -225,10 +212,6 @@ def read_data(data_dir, limit=0):
 
 
 @plac.annotations(
-    train_dir=("Location of training file or directory"),
-    dev_dir=("Location of development file or directory"),
-    model_dir=("Location of output model directory",),
-    is_runtime=("Demonstrate run-time usage", "flag", "r", bool),
     nr_hidden=("Number of hidden units", "option", "H", int),
     max_length=("Maximum sentence length", "option", "L", int),
     dropout=("Dropout", "option", "d", float),
@@ -237,48 +220,10 @@ def read_data(data_dir, limit=0):
     batch_size=("Size of minibatches for training LSTM", "option", "b", int),
     nr_examples=("Limit to N examples", "option", "n", int)
 )
-def main(model_dir=None, train_dir=None, dev_dir=None,
-         is_runtime=False,
-         nr_hidden=32, max_length=100, # Shape
-         dropout=0.5, learn_rate=0.001, # General NN config
-         nb_epoch=5, batch_size=256, nr_examples=-1):  # Training params
-    if model_dir is not None:
-        model_dir = pathlib.Path(model_dir)
-    if train_dir is None or dev_dir is None:
-        imdb_data = thinc.extra.datasets.imdb()
-    if is_runtime:
-        if dev_dir is None:
-            dev_texts, dev_labels = zip(*imdb_data[1])
-        else:
-            dev_texts, dev_labels = read_data(dev_dir)
-        acc = evaluate(model_dir, dev_texts, dev_labels, max_length=max_length)
-        print(acc)
-    else:
-        if train_dir is None:
-            train_texts, train_labels = zip(*imdb_data[0])
-        else:
-            print("Read data")
-            train_texts, train_labels = read_data(train_dir, limit=nr_examples)
-        if dev_dir is None:
-            dev_texts, dev_labels = zip(*imdb_data[1])
-        else:
-            dev_texts, dev_labels = read_data(dev_dir, imdb_data, limit=nr_examples)
-        train_labels = numpy.asarray(train_labels, dtype='int32')
-        dev_labels = numpy.asarray(dev_labels, dtype='int32')
-        lstm = train(train_texts, train_labels, dev_texts, dev_labels,
-                     {'nr_hidden': nr_hidden, 'max_length': max_length, 'nr_class': 1},
-                     {'dropout': dropout, 'lr': learn_rate},
-                     {},
-                     nb_epoch=nb_epoch, batch_size=batch_size)
-        weights = lstm.get_weights()
-        if model_dir is not None:
-            with (model_dir / 'model').open('wb') as file_:
-                pickle.dump(weights[1:], file_)
-            with (model_dir / 'config.json').open('w') as file_:
-                file_.write(lstm.to_json())
 
 
-def train_with_active_learning(step=1, target='Feminist Movement', tweet_per_step=70,
+
+def main(step=1, strategy='entropy', target='Feminist Movement', tweet_per_step=70,
         nr_hidden=32, max_length=100, # Input Shape
          dropout=0.5, learn_rate=0.01, # General NN config
          nb_epoch=5, batch_size=50, nr_examples=-1):  
@@ -378,20 +323,69 @@ def train_with_active_learning(step=1, target='Feminist Movement', tweet_per_ste
         # save intermediate datasets
         indices_to_label = data_ordered.index[:tweet_per_step]
         data_to_label = unlabeled_data.loc[indices_to_label].reset_index(drop=True)
-        data_to_label.to_csv('Step_{}_tweet_to_label.csv'.format(step), index=False)
+        data_to_label[cols].to_csv('Step_{}_tweet_to_label.csv'.format(step), index=False)
         indices_unlabeled = data_ordered.index[tweet_per_step:]
         data_unlabeled_next_step = unlabeled_data.loc[indices_unlabeled].reset_index(drop=True)
-        data_unlabeled_next_step.to_csv('Step_{}_unlabeled_next_step.csv'.format(step), index=False)
-
-        
+        data_unlabeled_next_step.to_csv('Step_{}_unlabeled_next_step.csv'.format(step), index=False) 
         
     return
 
 if __name__ == '__main__':
     
-    step = 2
+    '''
+    Main function to train an lstm model one step at time.
+    
+    
+    INPUTS:
+    
+    - In order to run, the scriptrequire both file from the 2016 SemEval task 
+      in the same directory (called test.csv and train.csv, the test file is 
+      used here as a source for unlabeled data)
+    
+    
+    PARAMETERS:
+        
+    - Step: the number of the training step to perform, starting from 1
+    
+    - Target: the label of the subset of tweets from the SemEval task to analyze
+    
+              'Hillary Clinton' | 'Legalization of abortion' | 'Atheism' 
+              'Climate Change is a Real Concern' | 'Feminist Movement'
+    
+    - Tweet_per_step: number of tweets to select with the active learning strategy
+    
+    - Strategy: the active learning strategy. If none, return just the predicted label
+    
+               'entropy' | 'max_margin' | 'least_confident' | 'random'
+    
+    
+    OUTPUTS:
+    
+    - Model_config.json --> contains the parameter of the trained lstm 
+    
+    - Model_weights.pkl --> contains the weights of the trained lstm
+    
+    - Train_data --> contains the specific dataset used to train the lstm
+    
+    - Test_data --> contains the dataset used to test the lstm
+                    N.B: the test dataset do not refet to the test.csv file. 
+                    Moreover, it is generated only once, during the first step, 
+                    cause the same dataset is used to test also the next models
+                    without any changing.
+    
+    - Tweets_to_label --> csv containing tweet and target stance of the tweets 
+                          selected with the specified active learning strategy
+    
+    - Unlabeled_next_step --> Unlabeled data which were not selected during 
+                              the current step
+        
+    '''
+    
+    step = 4
     target = 'Feminist Movement'
     tweet_per_step = 70
+    strategy = 'entropy'
     
-    plac.call(train_with_active_learning(step=step, target=target, tweet_per_step=tweet_per_step))
+    plac.call(main(step=step, target=target,\
+                   strategy=strategy, tweet_per_step=tweet_per_step))
 
